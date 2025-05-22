@@ -1,16 +1,16 @@
 // src/components/3dviewer.js
-import React, { Suspense, useState, useRef, useEffect, useMemo } from 'react';
+import React, { Suspense, useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Environment, Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { Link, useParams } from 'react-router-dom';
 import { db } from '../firebase/config';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const M_TO_FT = 3.28084;
 const SECTION_CUT_RANGE = 10;
 const LIGHT_RED_COLOR = '#FF6B6B';
-const COMMENT_BLUE_COLOR = '#44AAFF'; // Using this for active/themed buttons
+const COMMENT_BLUE_COLOR = '#44AAFF'; 
 
 const formatDistance = (distance, unit) => {
   if (unit === 'm') return `${distance.toFixed(3)} m`;
@@ -142,7 +142,7 @@ function SingleMeasurement({ measurement, index, unit, isOrthographic, onDeleteM
   const midPoint = useMemo(() => new THREE.Vector3().addVectors(measurement.start, measurement.end).multiplyScalar(0.5), [measurement.start, measurement.end]);
   const { htmlStyle, sphereRadius, sphereDetail } = useMemo(() => {
     const baseFontSize = 10;
-    const targetOrthoZoomForBaseSize = 1; // Adjusted from 40, then 30. Try 1 for smaller initial size.
+    const targetOrthoZoomForBaseSize = 1; 
     let scale = 1;
     if (isOrthographic) {
         if (camera.zoom && camera.zoom !== 0) {
@@ -247,7 +247,7 @@ function CommentPin({ comment, index, isEditing, isOrthographic, onStartEditComm
   const handleDeleteClick = (e) => { e.stopPropagation(); onDeleteComment(comment.id); };
   const { labelStyle, distanceFactor, pinRadius } = useMemo(() => {
     const baseFontSize = 10;
-    const targetOrthoZoomForBaseSize = 1; // Adjusted from 40, then 30. Try 1.
+    const targetOrthoZoomForBaseSize = 1; 
     let scale = 1;
     if (isOrthographic) {
         if (camera.zoom && camera.zoom !== 0) {
@@ -380,6 +380,10 @@ function Viewer3D() {
   const [currentProperty, setCurrentProperty] = useState(null);
   const [loadingProperty, setLoadingProperty] = useState(true);
   const [propertyError, setPropertyError] = useState(null);
+
+  const [availableModels, setAvailableModels] = useState([]);
+  const [activeModel, setActiveModel] = useState(null);
+
   const [viewCommand, setViewCommand] = useState('reset');
   const [isOrthographic, setIsOrthographic] = useState(false);
   const [measurements, setMeasurements] = useState([]);
@@ -396,6 +400,22 @@ function Viewer3D() {
   const [sectionCutPosition, setSectionCutPosition] = useState(0);
   const initialCamPosRef = useRef(new THREE.Vector3(15, 15, 15)); 
 
+  const addEventToPropertyLog = useCallback(async (logText) => {
+    if (!propertyId) return;
+    try {
+      const propertyDocRef = doc(db, 'properties', propertyId);
+      const logCollectionRef = collection(propertyDocRef, 'eventLog');
+      await addDoc(logCollectionRef, {
+        text: logText,
+        timestamp: serverTimestamp(),
+        source: '3D Viewer' 
+      });
+    } catch (error) {
+      console.error("Error adding to property event log:", error);
+    }
+  }, [propertyId]);
+
+
   useEffect(() => {
     if (!propertyId) {
         setPropertyError("No property ID provided in the URL.");
@@ -405,18 +425,33 @@ function Viewer3D() {
     const fetchPropertyData = async () => {
         setLoadingProperty(true);
         setPropertyError(null);
+        setAvailableModels([]); 
+        setActiveModel(null);
         try {
             const propertyDocRef = doc(db, 'properties', propertyId);
             const docSnap = await getDoc(propertyDocRef);
             if (docSnap.exists()) {
-                setCurrentProperty({ id: docSnap.id, ...docSnap.data() });
+                const data = docSnap.data();
+                setCurrentProperty({ id: docSnap.id, ...data });
+
+                if (data.models && Array.isArray(data.models) && data.models.length > 0) {
+                    const sortedModels = [...data.models].sort((a, b) => {
+                        if (a.order !== undefined && b.order !== undefined) {
+                            return a.order - b.order;
+                        }
+                        return (a.name || '').localeCompare(b.name || '');
+                    });
+                    setAvailableModels(sortedModels);
+                    setActiveModel(sortedModels[0]); 
+                } else {
+                    setPropertyError(prev => prev ? `${prev}\nNo models found for this property.` : "No models found for this property.");
+                }
             } else {
                 setPropertyError(`Property with ID "${propertyId}" not found.`);
-                setCurrentProperty(null);
             }
         } catch (err) {
             setPropertyError("Failed to load property data. Check console for details.");
-            setCurrentProperty(null);
+            console.error("Error fetching property data:", err);
         } finally {
             setLoadingProperty(false);
         }
@@ -424,7 +459,8 @@ function Viewer3D() {
     fetchPropertyData();
   }, [propertyId]); 
 
-  const modelUrl = useMemo(() => currentProperty?.modelUrl || null, [currentProperty]);
+  const modelToLoadUrl = useMemo(() => activeModel?.url || null, [activeModel]);
+
   const activeClippingPlane = useMemo(() => {
     if (!isSectionCutActive) return null;
     let normal = new THREE.Vector3();
@@ -442,18 +478,25 @@ function Viewer3D() {
   }), []); 
   const perspectiveCameraProps = useMemo(() => ({ ...baseCameraProps, fov: 50 }), [baseCameraProps]);
   const orthoCameraProps = useMemo(() => ({ ...baseCameraProps }), [baseCameraProps]); 
+
   useEffect(() => {
     if (viewCommand !== 'idle') {
       const timer = setTimeout(() => setViewCommand('idle'), 150); 
       return () => clearTimeout(timer);
     }
   }, [viewCommand]);
-   useEffect(() => {
+
+   useEffect(() => { 
     setIsMeasureMode(false);
     setMeasurePoints([]);
     setIsPlacingCommentMode(false);
     setEditingCommentId(null);
-  }, [modelUrl]); 
+    setMeasurements([]); 
+    setComments([]);
+    if (activeModel) {
+    }
+  }, [activeModel, addEventToPropertyLog]); 
+
   const handleToggleCamera = () => setIsOrthographic(prev => !prev);
   const handleSetView = (view) => setViewCommand(view);
   const handleToggleMeasureMode = () => {
@@ -474,7 +517,12 @@ function Viewer3D() {
       setEditingCommentId(null); 
     }
   };
-  const handleDeleteMeasurement = (idToDelete) => setMeasurements(prev => prev.filter(m => m.id !== idToDelete));
+  const handleDeleteMeasurement = (idToDelete) => {
+    setMeasurements(prev => prev.filter(m => m.id !== idToDelete));
+    if (activeModel) {
+        addEventToPropertyLog(`Deleted a measurement from model: "${activeModel.name || 'Unnamed Layer'}"`);
+    }
+  };
   const handlePointMeasured = (clickedPoint) => { 
     if (!isMeasureMode) return; 
     const updatedPoints = [...measurePoints, clickedPoint.clone()]; 
@@ -484,6 +532,9 @@ function Viewer3D() {
         const distance = start.distanceTo(end); 
         setMeasurements(prev => [...prev, { id: Date.now(), start: start, end: end, distance: distance }]); 
         setMeasurePoints([]); 
+        if (activeModel) {
+            addEventToPropertyLog(`Added a measurement (${formatDistance(distance, unit)}) on model: "${activeModel.name || 'Unnamed Layer'}"`);
+        }
     } 
   };
   const handleToggleUnit = () => { 
@@ -495,18 +546,35 @@ function Viewer3D() {
     setComments(prev => [...prev, newComment]);
     setIsPlacingCommentMode(false); 
     setEditingCommentId(newComment.id); 
+    if (activeModel) {
+        addEventToPropertyLog(`Placed a new comment on model: "${activeModel.name || 'Unnamed Layer'}"`);
+    }
   };
   const handleStartEditComment = (id) => {
     if (isMeasureMode || isPlacingCommentMode) return; 
     setEditingCommentId(id);
   };
   const handleUpdateCommentText = (id, newText) => { 
-    setComments(prev => prev.map(c => c.id === id ? { ...c, text: newText.trim() || "Comment" } : c)); 
+    let oldText = "";
+    setComments(prev => prev.map(c => {
+        if (c.id === id) {
+            oldText = c.text;
+            return { ...c, text: newText.trim() || "Comment" };
+        }
+        return c;
+    }));
+    if (activeModel && oldText !== (newText.trim() || "Comment")) { 
+        addEventToPropertyLog(`Updated comment text to "${newText.trim() || "Comment"}" on model: "${activeModel.name || 'Unnamed Layer'}"`);
+    }
   };
   const handleFinishEditComment = () => setEditingCommentId(null);
   const handleDeleteComment = (idToDelete) => { 
+    const commentToDelete = comments.find(c => c.id === idToDelete);
     setComments(prev => prev.filter(c => c.id !== idToDelete)); 
     if (editingCommentId === idToDelete) setEditingCommentId(null); 
+    if (activeModel && commentToDelete) {
+        addEventToPropertyLog(`Deleted comment ("${commentToDelete.text.substring(0,20)}...") from model: "${activeModel.name || 'Unnamed Layer'}"`);
+    }
   };
   const handleToggleSectionCut = () => setIsSectionCutActive(prev => !prev);
   const handleSetSectionCutAxis = (axis) => {
@@ -523,10 +591,17 @@ function Viewer3D() {
   };
   const handleToggleShowMeasurements = () => setShowMeasurements(prev => !prev);
 
+  const handleModelSelect = (modelId) => {
+    const selected = availableModels.find(m => m.id === modelId);
+    if (selected && selected.id !== activeModel?.id) { 
+        setActiveModel(selected);
+    }
+  };
+
   if (loadingProperty) {
     return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', background:'#202020', color: 'white', fontSize: '1.5em' }}>Loading Property Data...</div>;
   }
-  if (propertyError) {
+  if (propertyError && !currentProperty) { 
     return (
         <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100vh', background:'#202020', color: 'white', padding: '30px', textAlign: 'center' }}>
             <h1 style={{color: LIGHT_RED_COLOR}}>Error Loading Property</h1>
@@ -535,19 +610,30 @@ function Viewer3D() {
         </div>
     );
   }
-  if (!currentProperty || !modelUrl) { 
+   if (currentProperty && availableModels.length === 0 && !loadingProperty) { 
      return (
         <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100vh', background:'#202020', color: 'white', padding: '30px', textAlign: 'center' }}>
-            <h1>Model Not Available</h1>
-            <p>Property data loaded, but no model URL found for: {currentProperty?.name || `ID ${propertyId}`}. Please check Firestore data.</p>
+            <h1>No Models Available</h1>
+            <p>This property ({currentProperty.name}) currently has no 3D models assigned.</p>
+            <p>{propertyError || ''}</p> 
+            <Link to="/" style={{ color: '#61dafb', marginTop:'20px', fontSize:'16px' }}>← Back to Dashboard</Link>
+        </div>
+    );
+  }
+  // Corrected conditional for "Model Not Selected or URL Missing"
+  if (!loadingProperty && currentProperty && (!activeModel || !modelToLoadUrl)) {
+     return (
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100vh', background:'#202020', color: 'white', padding: '30px', textAlign: 'center' }}>
+            <h1>Model Not Selected or URL Missing</h1>
+            <p>Please select a model layer, or the current layer is missing a URL for property: {currentProperty.name}.</p>
             <Link to="/" style={{ color: '#61dafb', marginTop:'20px', fontSize:'16px' }}>← Back to Dashboard</Link>
         </div>
     );
   }
 
-  // --- UI Styles ---
-  const UI_SIDEBAR_WIDTH_VALUE = '220px'; // New sidebar width
 
+  // --- UI Styles ---
+  const UI_SIDEBAR_WIDTH_VALUE = '220px'; 
   const sidebarContainerStyle = { 
       position: 'absolute', top: '0', left: '0', width: UI_SIDEBAR_WIDTH_VALUE, height: '100%', 
       background: 'rgba(30, 30, 30, 0.97)', 
@@ -556,7 +642,7 @@ function Viewer3D() {
       overflowY: 'auto', fontFamily: 'sans-serif', 
       boxShadow: '2px 0 8px rgba(0,0,0,0.6)', zIndex: 10 
   };
-  const sectionStyle = { 
+  const sectionStyleDef = { 
       display: 'flex', flexDirection: 'column', gap: '6px'
   }; 
   const titleStyle = { 
@@ -564,7 +650,7 @@ function Viewer3D() {
       fontWeight: '600', color: '#bbb', marginBottom: '4px', 
       borderBottom: '1px solid #444', paddingBottom: '4px', textTransform: 'uppercase' 
   };
-  const projectInfoStyle = {...sectionStyle, textAlign: 'center', gap: '4px', paddingBottom: '10px', marginBottom:'5px' };
+  const projectInfoStyle = {...sectionStyleDef, textAlign: 'center', gap: '4px', paddingBottom: '10px', marginBottom:'5px' };
   const projectNameStyle = { fontSize: '16px', fontWeight: 'bold', color: '#fff', margin: 0 }; 
   const projectAddressStyle = { fontSize: '10px', color: '#aaa', margin: 0 }; 
   const generalButtonStyle = (isActive = false, isDisabled = false) => ({ 
@@ -629,14 +715,32 @@ function Viewer3D() {
     <div style={{ width: '100vw', height: '100vh', position: 'relative' }}> 
       <div style={sidebarContainerStyle}>
         <div style={projectInfoStyle}>
-           <h2 style={projectNameStyle}>{currentProperty.name}</h2>
-           {currentProperty.address && <p style={projectAddressStyle}>{currentProperty.address}</p>}
+           <h2 style={projectNameStyle}>{currentProperty?.name || 'Loading Property...'}</h2>
+           {currentProperty?.address && <p style={projectAddressStyle}>{currentProperty.address}</p>}
            <Link to="/" style={{ textDecoration: 'none', marginTop: '8px' }}>
               <button style={generalButtonStyle(false, false)}> ← Dashboard </button>
            </Link>
         </div>
 
-        <div style={sectionStyle}>
+        {availableModels.length > 1 && (
+          <div style={sectionStyleDef}>
+            <span style={titleStyle}>Select Model Layer</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              {availableModels.map(model => (
+                <button
+                  key={model.id}
+                  onClick={() => handleModelSelect(model.id)}
+                  style={generalButtonStyle(activeModel?.id === model.id, false)}
+                  title={model.name}
+                >
+                  {model.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div style={sectionStyleDef}>
           <span style={titleStyle}>Camera</span>
           <div style={compactItemStyle}>
             <span style={compactItemLabelStyle}>{isOrthographic ? 'View: Orthographic' : 'View: Perspective'}</span>
@@ -644,7 +748,7 @@ function Viewer3D() {
           </div>
         </div>
 
-        <div style={sectionStyle}>
+        <div style={sectionStyleDef}>
           <span style={titleStyle}>Standard Views</span>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px' }}>
             <button onClick={() => handleSetView('reset')} style={compactButtonStyle()}>Reset/Iso</button>
@@ -656,7 +760,7 @@ function Viewer3D() {
           </div>
         </div>
         
-        <div style={sectionStyle}>
+        <div style={sectionStyleDef}>
           <span style={titleStyle}>Section Cut</span>
           <div style={compactItemStyle}>
             <span style={compactItemLabelStyle}>{isSectionCutActive ? 'Status: Active' : 'Status: Disabled'}</span>
@@ -681,7 +785,7 @@ function Viewer3D() {
            )}
          </div>
 
-        <div style={sectionStyle}>
+        <div style={sectionStyleDef}>
            <span style={titleStyle}>Tools</span>
            <button onClick={handleToggleMeasureMode} style={generalButtonStyle(isMeasureMode, !!editingCommentId)} disabled={!!editingCommentId}>
              {isMeasureMode ? 'Measuring...' : 'Measure Dist.'}
@@ -691,7 +795,7 @@ function Viewer3D() {
            </button>
         </div>
 
-        <div style={sectionStyle}>
+        <div style={sectionStyleDef}>
            <span style={titleStyle}>Display</span>
            <div style={compactItemStyle}>
                <span style={compactItemLabelStyle}>Comments ({comments.length})</span>
@@ -755,37 +859,39 @@ function Viewer3D() {
 
       <div style={canvasContainerStyle}>
          <Canvas
-            key={modelUrl + (isOrthographic ? '_ortho' : '_persp')} 
+            key={modelToLoadUrl + (isOrthographic ? '_ortho' : '_persp')} 
             orthographic={isOrthographic}
             camera={isOrthographic ? orthoCameraProps : perspectiveCameraProps}
             shadows
             gl={{ localClippingEnabled: true, antialias: true, logarithmicDepthBuffer: true }}
           >
-            <Suspense fallback={<Html center><div style={{color: 'white', fontSize: '1.5em', background:'rgba(0,0,0,0.7)', padding:'15px', borderRadius:'8px'}}>Loading 3D Model...</div></Html>}>
-              <SceneContents
-                modelUrl={modelUrl} 
-                isMeasureMode={isMeasureMode}
-                isPlacingCommentMode={isPlacingCommentMode}
-                onPointMeasured={handlePointMeasured}
-                onCommentPlaced={handleCommentPlaced}
-                clippingPlanes={clippingPlanes}
-                viewCommand={viewCommand}
-                initialCameraPos={initialCamPosRef.current}
-                isOrthographic={isOrthographic} 
-                measurePoints={measurePoints}
-                measurements={measurements}
-                unit={unit}
-                showMeasurements={showMeasurements}
-                onDeleteMeasurement={handleDeleteMeasurement}
-                comments={comments}
-                showComments={showComments}
-                editingCommentId={editingCommentId}
-                onStartEditComment={handleStartEditComment}
-                onUpdateCommentText={handleUpdateCommentText}
-                onFinishEditComment={handleFinishEditComment}
-                onDeleteComment={handleDeleteComment}
-              />
-            </Suspense>
+            {modelToLoadUrl && ( 
+              <Suspense fallback={<Html center><div style={{color: 'white', fontSize: '1.5em', background:'rgba(0,0,0,0.7)', padding:'15px', borderRadius:'8px'}}>Loading 3D Model...</div></Html>}>
+                <SceneContents
+                  modelUrl={modelToLoadUrl} 
+                  isMeasureMode={isMeasureMode}
+                  isPlacingCommentMode={isPlacingCommentMode}
+                  onPointMeasured={handlePointMeasured}
+                  onCommentPlaced={handleCommentPlaced} // Corrected: Pass handleCommentPlaced
+                  clippingPlanes={clippingPlanes}
+                  viewCommand={viewCommand}
+                  initialCameraPos={initialCamPosRef.current}
+                  isOrthographic={isOrthographic} 
+                  measurePoints={measurePoints}
+                  measurements={measurements}
+                  unit={unit}
+                  showMeasurements={showMeasurements}
+                  onDeleteMeasurement={handleDeleteMeasurement}
+                  comments={comments}
+                  showComments={showComments}
+                  editingCommentId={editingCommentId}
+                  onStartEditComment={handleStartEditComment} 
+                  onUpdateCommentText={handleUpdateCommentText}
+                  onFinishEditComment={handleFinishEditComment}
+                  onDeleteComment={handleDeleteComment}
+                />
+              </Suspense>
+            )}
           </Canvas>
       </div>
     </div>

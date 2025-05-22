@@ -218,17 +218,14 @@ const PropertyDetails = () => {
     }
   };
   
-  // --- Consistent Dark Theme Styles ---
-  const THEME_GREEN = '#008000'; // Green from Dashboard
-  const THEME_GREEN_HOVER = '#006400';
-  const DARK_BACKGROUND = '#121212'; // Main background from Dashboard
-  const CARD_BACKGROUND = '#1e1e1e'; // Card background from Dashboard
-  const TEXT_PRIMARY = '#ffffff';    // Brightest text (e.g., headers)
-  const TEXT_SECONDARY = '#e0e0e0';  // Main text
-  const TEXT_TERTIARY = '#b0b0b0';   // Softer text, labels
-  const BORDER_COLOR_SOFT = '#282828'; // Soft border for cards
-  const BORDER_COLOR_MEDIUM = '#383838';// Medium border for dividers
-  const INPUT_BACKGROUND = '#2a2a2a';  // Background for inputs
+  const THEME_GREEN = '#008000';
+  const DARK_BACKGROUND = '#121212';
+  const CARD_BACKGROUND = '#1e1e1e';
+  const TEXT_PRIMARY = '#ffffff';   
+  const TEXT_SECONDARY = '#e0e0e0'; 
+  const TEXT_TERTIARY = '#b0b0b0';  
+  const BORDER_COLOR_MEDIUM = '#383838';
+  const INPUT_BACKGROUND = '#2a2a2a'; 
 
   const containerStyle = { 
     background: DARK_BACKGROUND, color: TEXT_SECONDARY, minHeight: '100vh', 
@@ -241,46 +238,42 @@ const PropertyDetails = () => {
   };
   const headerStyle = {
     color: TEXT_PRIMARY, borderBottom: `1px solid ${BORDER_COLOR_MEDIUM}`, 
-    paddingBottom: '15px', marginBottom: '25px', fontSize: '28px', fontWeight: '600', textAlign: 'center'
-  };
+    paddingBottom: '15px', marginBottom: '10px', fontSize: '28px', fontWeight: '600', textAlign: 'center'
+  }; // Reduced marginBottom for header
   const sectionTitleStyle = {
     fontSize: '20px', color: TEXT_PRIMARY, fontWeight: '500', 
     marginTop: '30px', marginBottom: '15px', 
-    paddingBottom: '10px', borderBottom: `1px solid ${BORDER_COLOR_MEDIUM}` // Adjusted border
+    paddingBottom: '10px', borderBottom: `1px solid ${BORDER_COLOR_MEDIUM}`
   };
   const detailItemStyle = { marginBottom: '20px' };
   const labelStyle = { display: 'block', marginBottom: '8px', color: TEXT_TERTIARY, fontSize: '14px', fontWeight: '500' };
   const valueStyle = { color: TEXT_SECONDARY, fontSize: '16px', lineHeight: '1.6', whiteSpace: 'pre-wrap' };
-  
-  const inputStyleBase = { // Base for input and textarea
+  const inputStyleBase = {
     width: '100%', padding: '10px', borderRadius: '4px', border: `1px solid ${BORDER_COLOR_MEDIUM}`,
     background: INPUT_BACKGROUND, color: TEXT_SECONDARY, fontSize: '15px', boxSizing: 'border-box', marginBottom: '5px'
   };
   const inputStyle = { ...inputStyleBase };
   const textareaStyle = { ...inputStyleBase, minHeight: '100px', resize: 'vertical' };
-  
   const buttonGroupStyle = { marginTop: '25px', display: 'flex', gap: '10px', justifyContent: 'flex-end' };
   const buttonStyle = (isPrimary = false, isDestructive = false, isDisabled = false) => ({
     padding: '10px 20px', borderRadius: '5px', border: 'none',
-    background: isDisabled ? '#444' : (isDestructive ? '#c0392b' : (isPrimary ? THEME_GREEN : '#333')), // Adjusted disabled bg
+    background: isDisabled ? '#444' : (isDestructive ? '#c0392b' : (isPrimary ? THEME_GREEN : '#333')),
     color: isDisabled ? '#888' : TEXT_PRIMARY, 
     cursor: isDisabled? 'not-allowed' : 'pointer', 
     fontSize: '14px', fontWeight: '500',
     transition: 'background-color 0.2s ease',
     opacity: isDisabled ? 0.7 : 1,
   });
-
-   const generalLinkStyle = { // For Back to Dashboard and other general links
+   const generalLinkStyle = { 
     color: THEME_GREEN, textDecoration: 'none',
     padding: '8px 12px', border: `1px solid ${THEME_GREEN}`, borderRadius: '5px',
     transition: 'background-color 0.2s, color 0.2s ease',
-    display: 'inline-block', // To allow margin/padding correctly
+    display: 'inline-block', 
   };
    const onGeneralLinkHover = (e, isHover) => {
     e.currentTarget.style.backgroundColor = isHover ? THEME_GREEN : 'transparent';
     e.currentTarget.style.color = isHover ? DARK_BACKGROUND : THEME_GREEN;
   };
-
   const logEntryStyle = {
     background: INPUT_BACKGROUND, padding: '10px 15px', borderRadius: '4px', 
     marginBottom: '10px', borderLeft: `3px solid ${THEME_GREEN}`
@@ -302,7 +295,6 @@ const PropertyDetails = () => {
   const imagePreviewStyle = { maxWidth: '100%', maxHeight: '200px', borderRadius: '4px', marginTop: '10px', border: `1px solid ${BORDER_COLOR_MEDIUM}` };
   const fileLinkStyle = { color: THEME_GREEN, textDecoration: 'underline', display: 'block', marginTop: '5px', fontSize: '14px' };
 
-
   if (loading) return <div style={containerStyle}><h1 style={{color: TEXT_PRIMARY, textAlign: 'center'}}>Loading Property Details...</h1></div>;
   if (error && !property && !isEditing) return <div style={containerStyle}><h1 style={{color: 'red', textAlign: 'center'}}>Error: {error}</h1><Link to="/" style={{...generalLinkStyle, marginTop: '30px'}} onMouseEnter={e=>onGeneralLinkHover(e,true)} onMouseLeave={e=>onGeneralLinkHover(e,false)}>← Back to Dashboard</Link></div>;
   if (!property && !isEditing) return <div style={containerStyle}><h1 style={{color: TEXT_PRIMARY, textAlign: 'center'}}>Property not found.</h1><Link to="/" style={{...generalLinkStyle, marginTop: '30px'}} onMouseEnter={e=>onGeneralLinkHover(e,true)} onMouseLeave={e=>onGeneralLinkHover(e,false)}>← Back to Dashboard</Link></div>;
@@ -310,7 +302,17 @@ const PropertyDetails = () => {
   return (
     <div style={containerStyle}>
       <div style={cardStyle}>
-        <h1 style={headerStyle}>{property?.name || "Property Details"}</h1>
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${BORDER_COLOR_MEDIUM}`, paddingBottom: '15px', marginBottom: '25px' }}>
+          <h1 style={{...headerStyle, borderBottom: 'none', paddingBottom: '0', marginBottom: '0', textAlign: 'left', flexGrow: 1 }}>{property?.name || "Property Details"}</h1>
+          <Link 
+            to="/" 
+            style={{...generalLinkStyle, marginTop: '0', marginLeft: '20px', flexShrink: 0}} 
+            onMouseEnter={e=>onGeneralLinkHover(e,true)} 
+            onMouseLeave={e=>onGeneralLinkHover(e,false)}
+          >
+            ← Dashboard
+          </Link>
+        </div>
 
         {error && <p style={{ color: 'red', marginBottom: '15px', textAlign: 'center' }}>Error: {error}</p>}
         {saveSuccess && <p style={{ color: THEME_GREEN, marginBottom: '15px', textAlign: 'center' }}>Details saved successfully!</p>}
@@ -408,12 +410,10 @@ const PropertyDetails = () => {
           </>
         )}
 
-        <hr style={{margin: '30px 0', borderColor: BORDER_COLOR_MEDIUM}} />
+        {/* Removed redundant links from bottom as Back to Dashboard is now at top */}
+        {/* <hr style={{margin: '30px 0', borderColor: BORDER_COLOR_MEDIUM}} /> 
         <div style={{textAlign: 'center'}}>
-          <Link to="/" style={{...generalLinkStyle, marginTop:'0'}} onMouseEnter={e=>onGeneralLinkHover(e,true)} onMouseLeave={e=>onGeneralLinkHover(e,false)}>
-            ← Back to Dashboard
-          </Link>
-        </div>
+        </div> */}
       </div>
     </div>
   );
