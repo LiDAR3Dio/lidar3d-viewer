@@ -1,7 +1,16 @@
 // src/firebase/config.js
-import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+
+// Imports MUST be at the top for ESLint rule import/first
+import { initializeApp } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
+
+// --- TEMPORARY DEBUG LOGGING ---
+// Now that imports are done, we can log.
+console.log("--- DEBUG: Firebase Config Script Execution ---");
+console.log("Raw process.env.REACT_APP_FIREBASE_PROJECT_ID:", process.env.REACT_APP_FIREBASE_PROJECT_ID);
+console.log("Raw process.env.REACT_APP_FIREBASE_API_KEY:", process.env.REACT_APP_FIREBASE_API_KEY);
+// --- END TEMPORARY DEBUG LOGGING ---
 
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
@@ -12,9 +21,16 @@ const firebaseConfig = {
   appId: process.env.REACT_APP_FIREBASE_APP_ID
 };
 
-// Initialize Firebase
+// --- TEMPORARY DEBUG LOGGING ---
+console.log("firebaseConfig object to be used by initializeApp:", JSON.stringify(firebaseConfig, null, 2));
+// --- END TEMPORARY DEBUG LOGGING ---
+
 const app = initializeApp(firebaseConfig);
 
-// Initialize and export Firebase services
+// --- TEMPORARY DEBUG LOGGING ---
+console.log("Firebase app initialized. Project ID from app instance:", app.options.projectId);
+console.log("--- END DEBUG: Firebase Config Script Execution ---");
+// --- END TEMPORARY DEBUG LOGGING ---
+
 export const db = getFirestore(app);
 export const storage = getStorage(app);
