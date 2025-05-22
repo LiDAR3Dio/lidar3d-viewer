@@ -8,10 +8,9 @@ import { db } from '../firebase/config';
 import { doc, getDoc } from 'firebase/firestore';
 
 const M_TO_FT = 3.28084;
-const UI_SIDEBAR_WIDTH = '280px';
 const SECTION_CUT_RANGE = 10;
 const LIGHT_RED_COLOR = '#FF6B6B';
-const COMMENT_BLUE_COLOR = '#44AAFF';
+const COMMENT_BLUE_COLOR = '#44AAFF'; // Using this for active/themed buttons
 
 const formatDistance = (distance, unit) => {
   if (unit === 'm') return `${distance.toFixed(3)} m`;
@@ -128,7 +127,6 @@ function CameraController({ viewCommand, initialCameraPos, isOrthographic }) {
                 case 'back':  applyView(camPos.set(modelCenter.x, modelCenter.y, modelCenter.z - targetDist), new THREE.Vector3(0, 1, 0)); break;
                 case 'left':  applyView(camPos.set(modelCenter.x - targetDist, modelCenter.y, modelCenter.z), new THREE.Vector3(0, 1, 0)); break;
                 case 'right': applyView(camPos.set(modelCenter.x + targetDist, modelCenter.y, modelCenter.z), new THREE.Vector3(0, 1, 0)); break;
-                case 'side':  applyView(camPos.set(modelCenter.x + targetDist, modelCenter.y, modelCenter.z), new THREE.Vector3(0, 1, 0)); break;
                 default: break;
             }
             if (needsUpdate && controls) {
@@ -144,9 +142,15 @@ function SingleMeasurement({ measurement, index, unit, isOrthographic, onDeleteM
   const midPoint = useMemo(() => new THREE.Vector3().addVectors(measurement.start, measurement.end).multiplyScalar(0.5), [measurement.start, measurement.end]);
   const { htmlStyle, sphereRadius, sphereDetail } = useMemo(() => {
     const baseFontSize = 10;
+    const targetOrthoZoomForBaseSize = 1; // Adjusted from 40, then 30. Try 1 for smaller initial size.
     let scale = 1;
-    if (isOrthographic && camera.zoom) { 
-        scale = Math.max(0.1, Math.min(5, 1 / camera.zoom)); 
+    if (isOrthographic) {
+        if (camera.zoom && camera.zoom !== 0) {
+             scale = targetOrthoZoomForBaseSize / camera.zoom;
+        } else {
+            scale = 1; 
+        }
+        scale = Math.max(0.2, Math.min(3, scale)); 
     }
     return {
       htmlStyle: {
@@ -155,7 +159,7 @@ function SingleMeasurement({ measurement, index, unit, isOrthographic, onDeleteM
         whiteSpace: 'nowrap', pointerEvents: 'none', userSelect: 'none',
         transformOrigin: 'center center'
       },
-      sphereRadius: 0.05 * Math.max(0.5, Math.min(2, scale)), 
+      sphereRadius: 0.05 * Math.max(0.5, Math.min(1.5, scale)), 
       sphereDetail: 16
     };
   }, [isOrthographic, camera.zoom]);
@@ -243,9 +247,15 @@ function CommentPin({ comment, index, isEditing, isOrthographic, onStartEditComm
   const handleDeleteClick = (e) => { e.stopPropagation(); onDeleteComment(comment.id); };
   const { labelStyle, distanceFactor, pinRadius } = useMemo(() => {
     const baseFontSize = 10;
+    const targetOrthoZoomForBaseSize = 1; // Adjusted from 40, then 30. Try 1.
     let scale = 1;
-    if (isOrthographic && camera.zoom) {
-        scale = Math.max(0.1, Math.min(5, 1 / camera.zoom));
+    if (isOrthographic) {
+        if (camera.zoom && camera.zoom !== 0) {
+            scale = targetOrthoZoomForBaseSize / camera.zoom;
+        } else {
+            scale = 1;
+        }
+        scale = Math.max(0.2, Math.min(3, scale)); 
     }
     return {
       labelStyle: {
@@ -256,7 +266,7 @@ function CommentPin({ comment, index, isEditing, isOrthographic, onStartEditComm
         display: 'flex', alignItems: 'center', transformOrigin: 'center center'
       },
       distanceFactor: isOrthographic ? undefined : 15,
-      pinRadius: 0.05 * Math.max(0.5, Math.min(2, scale))
+      pinRadius: 0.05 * Math.max(0.5, Math.min(1.5, scale))
     };
   }, [isOrthographic, isEditing, camera.zoom]);
   const displayCommentLabel = getAlphabeticLabel(index);
@@ -535,20 +545,84 @@ function Viewer3D() {
     );
   }
 
-  const sidebarContainerStyle = { position: 'absolute', top: '0', left: '0', width: UI_SIDEBAR_WIDTH, height: '100%', background: 'rgba(40, 40, 40, 0.98)', color: '#eee', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', fontFamily: 'sans-serif', boxShadow: '2px 0 10px rgba(0,0,0,0.5)', zIndex: 10 };
-  const sectionStyleDef = { display: 'flex', flexDirection: 'column', gap: '8px' }; 
-  const titleStyle = { fontSize: '13px', fontWeight: '600', color: '#ccc', marginBottom: '5px', borderBottom: '1px solid #555', paddingBottom: '5px' };
-  const projectInfoStyle = {...sectionStyleDef, gap: '5px', borderBottom: '1px solid #555', paddingBottom: '15px', marginBottom:'5px' };
-  const projectNameStyle = { fontSize: '17px', fontWeight: 'bold', color: '#fff', margin: 0, textAlign: 'center' }; 
-  const projectAddressStyle = { fontSize: '11px', color: '#bbb', margin: 0, textAlign: 'center' }; 
-  const buttonStyleDef = (isActive = false, isDisabled = false) => ({ width: '100%', padding: '8px 10px', borderRadius: '4px', border: `1px solid ${isActive ? COMMENT_BLUE_COLOR : (isDisabled ? '#555' : '#666')}`, background: isActive ? COMMENT_BLUE_COLOR : (isDisabled ? '#333' : '#444'), color: isActive ? '#111' : (isDisabled ? '#888' : '#eee'), cursor: isDisabled ? 'not-allowed' : 'pointer', textAlign: 'center', opacity: isDisabled ? 0.6 : 1, transition: 'background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease', fontSize: '13px' });
-  const listStyle = { listStyle: 'none', padding: '0', margin: '5px 0 0 0', maxHeight: '150px', overflowY: 'auto', background: 'rgba(0,0,0,0.1)', borderRadius: '3px', paddingRight: '5px' };
+  // --- UI Styles ---
+  const UI_SIDEBAR_WIDTH_VALUE = '220px'; // New sidebar width
+
+  const sidebarContainerStyle = { 
+      position: 'absolute', top: '0', left: '0', width: UI_SIDEBAR_WIDTH_VALUE, height: '100%', 
+      background: 'rgba(30, 30, 30, 0.97)', 
+      color: '#eee', padding: '15px',
+      display: 'flex', flexDirection: 'column', gap: '10px', 
+      overflowY: 'auto', fontFamily: 'sans-serif', 
+      boxShadow: '2px 0 8px rgba(0,0,0,0.6)', zIndex: 10 
+  };
+  const sectionStyle = { 
+      display: 'flex', flexDirection: 'column', gap: '6px'
+  }; 
+  const titleStyle = { 
+      fontSize: '12px', 
+      fontWeight: '600', color: '#bbb', marginBottom: '4px', 
+      borderBottom: '1px solid #444', paddingBottom: '4px', textTransform: 'uppercase' 
+  };
+  const projectInfoStyle = {...sectionStyle, textAlign: 'center', gap: '4px', paddingBottom: '10px', marginBottom:'5px' };
+  const projectNameStyle = { fontSize: '16px', fontWeight: 'bold', color: '#fff', margin: 0 }; 
+  const projectAddressStyle = { fontSize: '10px', color: '#aaa', margin: 0 }; 
+  const generalButtonStyle = (isActive = false, isDisabled = false) => ({ 
+      width: '100%', padding: '8px 10px', borderRadius: '4px', 
+      border: `1px solid ${isActive ? COMMENT_BLUE_COLOR : (isDisabled ? '#555' : '#666')}`, 
+      background: isActive ? COMMENT_BLUE_COLOR : (isDisabled ? '#333' : '#444'), 
+      color: isActive ? '#111' : (isDisabled ? '#888' : '#eee'), 
+      cursor: isDisabled ? 'not-allowed' : 'pointer', textAlign: 'center', 
+      opacity: isDisabled ? 0.6 : 1, 
+      transition: 'background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease', 
+      fontSize: '13px',
+      boxSizing: 'border-box'
+  });
+  const compactItemStyle = {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: '6px 0',
+      fontSize: '13px',
+      color: '#ddd',
+  };
+  const compactItemLabelStyle = {
+      marginRight: '10px', 
+      flexGrow: 1, 
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+  };
+  const compactButtonStyle = (isActive = false, isDisabled = false) => ({
+      padding: '4px 8px', 
+      borderRadius: '3px',
+      border: `1px solid ${isActive ? COMMENT_BLUE_COLOR : (isDisabled ? '#555' : '#555')}`,
+      background: isActive ? COMMENT_BLUE_COLOR : (isDisabled ? '#303030' : '#383838'),
+      color: isActive ? '#111' : (isDisabled ? '#777' : '#ccc'),
+      cursor: isDisabled ? 'not-allowed' : 'pointer',
+      textAlign: 'center',
+      fontSize: '11px', 
+      minWidth: '70px', 
+      flexShrink: 0, 
+  });
+  const radioGroupStyleCompact = { 
+      display: 'flex', justifyContent: 'space-around', alignItems: 'center', 
+      gap: '5px', fontSize: '11px', padding: '5px 0',
+      flexWrap: 'wrap' 
+  };
+  const radioLabelStyleCompact = (isDisabled) => ({ 
+      display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '11px', 
+      cursor: isDisabled ? 'not-allowed' : 'pointer', opacity: isDisabled ? 0.5 : 1, 
+      color: '#ccc', padding: '2px 4px' 
+  });
+  const sliderStyle = (isDisabled) => ({ 
+    width: '100%', cursor: isDisabled ? 'not-allowed' : 'pointer', 
+    opacity: isDisabled ? 0.5 : 1, margin: '5px 0' 
+  });
+  const listStyle = { listStyle: 'none', padding: '0', margin: '5px 0 0 0', maxHeight: '120px', overflowY: 'auto', background: 'rgba(0,0,0,0.1)', borderRadius: '3px', paddingRight: '5px' };
   const listItemStyle = (isEditingActiveItem = false) => ({ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', borderBottom: '1px solid #3a3a3a', padding: '3px 5px', fontSize: '11px', background: isEditingActiveItem ? 'rgba(70, 70, 100, 0.4)' : 'transparent', cursor: (isMeasureMode || isPlacingCommentMode || isEditingActiveItem) ? 'not-allowed' : 'pointer', borderRadius: '3px', minHeight: '22px', transition: 'background-color 0.2s' });
   const deleteButtonStyleList = { background: 'none', border: 'none', color: LIGHT_RED_COLOR, cursor: 'pointer', fontSize: '14px', padding: '0 4px', lineHeight: '1', fontWeight: 'bold' };
   const listTextStyle = { flexGrow: 1, marginRight: '5px', paddingLeft: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: '1.4', color: '#ddd' };
-  const radioGroupStyle = { display: 'flex', justifyContent: 'space-around', alignItems: 'center', gap: '5px', fontSize: '11px', padding: '5px 0' };
-  const radioLabelStyle = (isDisabled) => ({ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', cursor: isDisabled ? 'not-allowed' : 'pointer', opacity: isDisabled ? 0.5 : 1, color: '#ccc' });
-  const sliderStyle = (isDisabled) => ({ width: '100%', cursor: isDisabled ? 'not-allowed' : 'pointer', opacity: isDisabled ? 0.5 : 1, margin: '5px 0' });
   const canvasContainerStyle = { width: '100vw', height: '100vh', position: 'absolute', top: 0, left: 0, background: '#303030', zIndex: 1 }; 
 
   return (
@@ -557,75 +631,93 @@ function Viewer3D() {
         <div style={projectInfoStyle}>
            <h2 style={projectNameStyle}>{currentProperty.name}</h2>
            {currentProperty.address && <p style={projectAddressStyle}>{currentProperty.address}</p>}
-           <Link to="/" style={{ textDecoration: 'none', marginTop: '10px' }}>
-              <button style={{...buttonStyleDef(), background: '#555', borderColor: '#666'}}> ← Back to Dashboard </button>
+           <Link to="/" style={{ textDecoration: 'none', marginTop: '8px' }}>
+              <button style={generalButtonStyle(false, false)}> ← Dashboard </button>
            </Link>
         </div>
-        <div style={sectionStyleDef}>
+
+        <div style={sectionStyle}>
           <span style={titleStyle}>Camera</span>
-          <button onClick={handleToggleCamera} style={buttonStyleDef(isOrthographic)}>
-            {isOrthographic ? 'Orthographic View' : 'Perspective View'}
-          </button>
-        </div>
-        <div style={sectionStyleDef}>
-          <span style={titleStyle}>Standard Views</span>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-            <button onClick={() => handleSetView('top')} style={buttonStyleDef()}>Top</button>
-            <button onClick={() => handleSetView('front')} style={buttonStyleDef()}>Front</button>
-            <button onClick={() => handleSetView('side')} style={buttonStyleDef()}>Side / Right</button> 
-            <button onClick={() => handleSetView('reset')} style={buttonStyleDef()}>Reset / Iso</button> 
-             <button onClick={() => handleSetView('back')} style={buttonStyleDef()}>Back</button>
-             <button onClick={() => handleSetView('left')} style={buttonStyleDef()}>Left</button>
+          <div style={compactItemStyle}>
+            <span style={compactItemLabelStyle}>{isOrthographic ? 'View: Orthographic' : 'View: Perspective'}</span>
+            <button onClick={handleToggleCamera} style={compactButtonStyle()}>Toggle</button>
           </div>
         </div>
-        <div style={sectionStyleDef}>
+
+        <div style={sectionStyle}>
+          <span style={titleStyle}>Standard Views</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px' }}>
+            <button onClick={() => handleSetView('reset')} style={compactButtonStyle()}>Reset/Iso</button>
+            <button onClick={() => handleSetView('top')} style={compactButtonStyle()}>Top</button>
+            <button onClick={() => handleSetView('front')} style={compactButtonStyle()}>Front</button>
+            <button onClick={() => handleSetView('right')} style={compactButtonStyle()}>Right</button>
+            <button onClick={() => handleSetView('back')} style={compactButtonStyle()}>Back</button>
+            <button onClick={() => handleSetView('left')} style={compactButtonStyle()}>Left</button>
+          </div>
+        </div>
+        
+        <div style={sectionStyle}>
           <span style={titleStyle}>Section Cut</span>
-          <button onClick={handleToggleSectionCut} style={buttonStyleDef(isSectionCutActive)}>
-            {isSectionCutActive ? 'Disable Section Cut' : 'Enable Section Cut'}
-          </button>
+          <div style={compactItemStyle}>
+            <span style={compactItemLabelStyle}>{isSectionCutActive ? 'Status: Active' : 'Status: Disabled'}</span>
+            <button onClick={handleToggleSectionCut} style={compactButtonStyle(isSectionCutActive)}>
+              {isSectionCutActive ? 'Disable' : 'Enable'}
+            </button>
+          </div>
           {isSectionCutActive && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '5px', border: '1px solid #555', borderRadius: '4px', padding: '10px', background: 'rgba(0,0,0,0.1)' }}>
-              <div style={radioGroupStyle}>
-                 <label style={radioLabelStyle(editingCommentId !== null)}> <input type="radio" name="sectionAxis" value="y" checked={sectionCutAxis === 'y'} onChange={() => handleSetSectionCutAxis('y')} disabled={editingCommentId !== null} /> Y (Horiz) </label>
-                 <label style={radioLabelStyle(editingCommentId !== null)}> <input type="radio" name="sectionAxis" value="x" checked={sectionCutAxis === 'x'} onChange={() => handleSetSectionCutAxis('x')} disabled={editingCommentId !== null}/> X (Vert) </label>
-                 <label style={radioLabelStyle(editingCommentId !== null)}> <input type="radio" name="sectionAxis" value="z" checked={sectionCutAxis === 'z'} onChange={() => handleSetSectionCutAxis('z')} disabled={editingCommentId !== null}/> Z (Depth) </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px', border: '1px solid #444', borderRadius: '4px', padding: '8px', background: 'rgba(0,0,0,0.1)' }}>
+              <div style={radioGroupStyleCompact}>
+                 <label style={radioLabelStyleCompact(editingCommentId !== null)}> <input type="radio" name="sectionAxis" value="y" checked={sectionCutAxis === 'y'} onChange={() => handleSetSectionCutAxis('y')} disabled={editingCommentId !== null} /> Y </label>
+                 <label style={radioLabelStyleCompact(editingCommentId !== null)}> <input type="radio" name="sectionAxis" value="x" checked={sectionCutAxis === 'x'} onChange={() => handleSetSectionCutAxis('x')} disabled={editingCommentId !== null}/> X </label>
+                 <label style={radioLabelStyleCompact(editingCommentId !== null)}> <input type="radio" name="sectionAxis" value="z" checked={sectionCutAxis === 'z'} onChange={() => handleSetSectionCutAxis('z')} disabled={editingCommentId !== null}/> Z </label>
               </div>
               {sectionCutAxis && (
                 <>
                    <input type="range" min={-SECTION_CUT_RANGE} max={SECTION_CUT_RANGE} step={0.1} value={sectionCutPosition} onChange={handleSectionCutPositionChange} style={sliderStyle(editingCommentId !== null)} disabled={editingCommentId !== null} />
-                   <span style={{ fontSize: '10px', color: '#aaa', textAlign: 'center'}}>Position: {sectionCutPosition.toFixed(2)}</span>
+                   <span style={{ fontSize: '10px', color: '#aaa', textAlign: 'center'}}>Pos: {sectionCutPosition.toFixed(2)}</span>
                 </>
               )}
             </div>
            )}
          </div>
-        <div style={sectionStyleDef}>
+
+        <div style={sectionStyle}>
            <span style={titleStyle}>Tools</span>
-           <button onClick={handleToggleMeasureMode} style={buttonStyleDef(isMeasureMode)} disabled={!!editingCommentId}>
-             {isMeasureMode ? 'Measuring... (Click 2 pts)' : 'Measure Distance'}
+           <button onClick={handleToggleMeasureMode} style={generalButtonStyle(isMeasureMode, !!editingCommentId)} disabled={!!editingCommentId}>
+             {isMeasureMode ? 'Measuring...' : 'Measure Dist.'}
            </button>
-           <div style={{height: '5px'}}></div> 
-           <button onClick={handleTogglePlaceCommentMode} style={buttonStyleDef(isPlacingCommentMode)} disabled={!!editingCommentId} >
-             {isPlacingCommentMode ? 'Placing Comment... (Click 1 pt)' : 'Place Comment'}
-           </button>
-        </div>
-        <div style={sectionStyleDef}>
-           <span style={titleStyle}>Display Options</span>
-           <button onClick={handleToggleShowComments} style={buttonStyleDef(showComments, comments.length === 0)} disabled={comments.length === 0} title={comments.length === 0 ? "No comments to show/hide" : ""}>
-             {showComments ? 'Hide Comments' : 'Show Comments'} ({comments.length})
-           </button>
-           <button onClick={handleToggleShowMeasurements} style={{ ...buttonStyleDef(showMeasurements, measurements.length === 0), marginTop: '5px' }} disabled={measurements.length === 0} title={measurements.length === 0 ? "No measurements to show/hide" : ""}>
-             {showMeasurements ? 'Hide Measurements' : 'Show Measurements'} ({measurements.length})
-           </button>
-           <button onClick={handleToggleUnit} style={{...buttonStyleDef(), marginTop: '5px'}}>
-             Units: {unit.toUpperCase()}
+           <button onClick={handleTogglePlaceCommentMode} style={{...generalButtonStyle(isPlacingCommentMode, !!editingCommentId), marginTop: '5px'}} disabled={!!editingCommentId} >
+             {isPlacingCommentMode ? 'Placing...' : 'Place Comment'}
            </button>
         </div>
+
+        <div style={sectionStyle}>
+           <span style={titleStyle}>Display</span>
+           <div style={compactItemStyle}>
+               <span style={compactItemLabelStyle}>Comments ({comments.length})</span>
+               <button onClick={handleToggleShowComments} style={compactButtonStyle(showComments, comments.length === 0)} disabled={comments.length === 0}>
+                 {showComments ? 'Hide' : 'Show'}
+               </button>
+           </div>
+           <div style={compactItemStyle}>
+                <span style={compactItemLabelStyle}>Measurements ({measurements.length})</span>
+                <button onClick={handleToggleShowMeasurements} style={compactButtonStyle(showMeasurements, measurements.length === 0)} disabled={measurements.length === 0}>
+                    {showMeasurements ? 'Hide' : 'Show'}
+                </button>
+           </div>
+           <div style={compactItemStyle}>
+                <span style={compactItemLabelStyle}>Units</span>
+                <button onClick={handleToggleUnit} style={compactButtonStyle()}>
+                 {unit.toUpperCase()}
+               </button>
+           </div>
+        </div>
+        
          {(measurements.length > 0 || comments.length > 0) && (
-            <div style={{ borderTop: '1px solid #555', paddingTop: '10px', marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', flexShrink: 0 }}>
+            <div style={{ borderTop: '1px solid #444', paddingTop: '8px', marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
                 {measurements.length > 0 && showMeasurements && (
                     <div>
-                        <span style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', display: 'block', color: '#bbb' }}>Measurements ({unit}):</span>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '4px', display: 'block', color: '#bbb' }}>Measurements ({unit}):</span>
                         <ul style={listStyle}>
                             {measurements.map((m, index) => (
                                <li key={m.id} style={listItemStyle(false)} title={`Distance: ${formatDistance(m.distance, unit)}`}>
@@ -638,7 +730,7 @@ function Viewer3D() {
                 )}
                 {comments.length > 0 && showComments && (
                     <div>
-                        <span style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', display: 'block', color: '#bbb' }}>Comments:</span>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '4px', display: 'block', color: '#bbb' }}>Comments:</span>
                         <ul style={listStyle}>
                             {comments.map((comment, index) => (
                                <li key={comment.id}
@@ -660,6 +752,7 @@ function Viewer3D() {
              </div>
          )}
       </div> 
+
       <div style={canvasContainerStyle}>
          <Canvas
             key={modelUrl + (isOrthographic ? '_ortho' : '_persp')} 
