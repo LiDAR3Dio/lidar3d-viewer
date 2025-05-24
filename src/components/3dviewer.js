@@ -493,9 +493,8 @@ function Viewer3D() {
     setEditingCommentId(null);
     setMeasurements([]); 
     setComments([]);
-    if (activeModel) {
-    }
-  }, [activeModel, addEventToPropertyLog]); 
+    // Removed logging for model switching from here
+  }, [activeModel]); 
 
   const handleToggleCamera = () => setIsOrthographic(prev => !prev);
   const handleSetView = (view) => setViewCommand(view);
@@ -519,9 +518,7 @@ function Viewer3D() {
   };
   const handleDeleteMeasurement = (idToDelete) => {
     setMeasurements(prev => prev.filter(m => m.id !== idToDelete));
-    if (activeModel) {
-        addEventToPropertyLog(`Deleted a measurement from model: "${activeModel.name || 'Unnamed Layer'}"`);
-    }
+    // No logging for measurement deletion
   };
   const handlePointMeasured = (clickedPoint) => { 
     if (!isMeasureMode) return; 
@@ -532,9 +529,7 @@ function Viewer3D() {
         const distance = start.distanceTo(end); 
         setMeasurements(prev => [...prev, { id: Date.now(), start: start, end: end, distance: distance }]); 
         setMeasurePoints([]); 
-        if (activeModel) {
-            addEventToPropertyLog(`Added a measurement (${formatDistance(distance, unit)}) on model: "${activeModel.name || 'Unnamed Layer'}"`);
-        }
+        // No logging for measurement creation
     } 
   };
   const handleToggleUnit = () => { 
@@ -620,7 +615,6 @@ function Viewer3D() {
         </div>
     );
   }
-  // Corrected conditional for "Model Not Selected or URL Missing"
   if (!loadingProperty && currentProperty && (!activeModel || !modelToLoadUrl)) {
      return (
         <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100vh', background:'#202020', color: 'white', padding: '30px', textAlign: 'center' }}>
@@ -664,33 +658,7 @@ function Viewer3D() {
       fontSize: '13px',
       boxSizing: 'border-box'
   });
-  const compactItemStyle = {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: '6px 0',
-      fontSize: '13px',
-      color: '#ddd',
-  };
-  const compactItemLabelStyle = {
-      marginRight: '10px', 
-      flexGrow: 1, 
-      whiteSpace: 'nowrap',
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-  };
-  const compactButtonStyle = (isActive = false, isDisabled = false) => ({
-      padding: '4px 8px', 
-      borderRadius: '3px',
-      border: `1px solid ${isActive ? COMMENT_BLUE_COLOR : (isDisabled ? '#555' : '#555')}`,
-      background: isActive ? COMMENT_BLUE_COLOR : (isDisabled ? '#303030' : '#383838'),
-      color: isActive ? '#111' : (isDisabled ? '#777' : '#ccc'),
-      cursor: isDisabled ? 'not-allowed' : 'pointer',
-      textAlign: 'center',
-      fontSize: '11px', 
-      minWidth: '70px', 
-      flexShrink: 0, 
-  });
+  // Removed compactItemStyle, compactItemLabelStyle, compactButtonStyle as we'll use generalButtonStyle for wider buttons now
   const radioGroupStyleCompact = { 
       display: 'flex', justifyContent: 'space-around', alignItems: 'center', 
       gap: '5px', fontSize: '11px', padding: '5px 0',
@@ -742,32 +710,28 @@ function Viewer3D() {
 
         <div style={sectionStyleDef}>
           <span style={titleStyle}>Camera</span>
-          <div style={compactItemStyle}>
-            <span style={compactItemLabelStyle}>{isOrthographic ? 'View: Orthographic' : 'View: Perspective'}</span>
-            <button onClick={handleToggleCamera} style={compactButtonStyle()}>Toggle</button>
-          </div>
+          <button onClick={handleToggleCamera} style={generalButtonStyle(isOrthographic)}>
+            {isOrthographic ? 'Orthographic View' : 'Perspective View'}
+          </button>
         </div>
 
         <div style={sectionStyleDef}>
           <span style={titleStyle}>Standard Views</span>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px' }}>
-            <button onClick={() => handleSetView('reset')} style={compactButtonStyle()}>Reset/Iso</button>
-            <button onClick={() => handleSetView('top')} style={compactButtonStyle()}>Top</button>
-            <button onClick={() => handleSetView('front')} style={compactButtonStyle()}>Front</button>
-            <button onClick={() => handleSetView('right')} style={compactButtonStyle()}>Right</button>
-            <button onClick={() => handleSetView('back')} style={compactButtonStyle()}>Back</button>
-            <button onClick={() => handleSetView('left')} style={compactButtonStyle()}>Left</button>
+            <button onClick={() => handleSetView('reset')} style={generalButtonStyle()}>Reset/Iso</button>
+            <button onClick={() => handleSetView('top')} style={generalButtonStyle()}>Top</button>
+            <button onClick={() => handleSetView('front')} style={generalButtonStyle()}>Front</button>
+            <button onClick={() => handleSetView('right')} style={generalButtonStyle()}>Right</button>
+            <button onClick={() => handleSetView('back')} style={generalButtonStyle()}>Back</button>
+            <button onClick={() => handleSetView('left')} style={generalButtonStyle()}>Left</button>
           </div>
         </div>
         
         <div style={sectionStyleDef}>
           <span style={titleStyle}>Section Cut</span>
-          <div style={compactItemStyle}>
-            <span style={compactItemLabelStyle}>{isSectionCutActive ? 'Status: Active' : 'Status: Disabled'}</span>
-            <button onClick={handleToggleSectionCut} style={compactButtonStyle(isSectionCutActive)}>
-              {isSectionCutActive ? 'Disable' : 'Enable'}
-            </button>
-          </div>
+          <button onClick={handleToggleSectionCut} style={generalButtonStyle(isSectionCutActive)}>
+            {isSectionCutActive ? 'Disable Section Cut' : 'Enable Section Cut'}
+          </button>
           {isSectionCutActive && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px', border: '1px solid #444', borderRadius: '4px', padding: '8px', background: 'rgba(0,0,0,0.1)' }}>
               <div style={radioGroupStyleCompact}>
@@ -797,24 +761,15 @@ function Viewer3D() {
 
         <div style={sectionStyleDef}>
            <span style={titleStyle}>Display</span>
-           <div style={compactItemStyle}>
-               <span style={compactItemLabelStyle}>Comments ({comments.length})</span>
-               <button onClick={handleToggleShowComments} style={compactButtonStyle(showComments, comments.length === 0)} disabled={comments.length === 0}>
-                 {showComments ? 'Hide' : 'Show'}
-               </button>
-           </div>
-           <div style={compactItemStyle}>
-                <span style={compactItemLabelStyle}>Measurements ({measurements.length})</span>
-                <button onClick={handleToggleShowMeasurements} style={compactButtonStyle(showMeasurements, measurements.length === 0)} disabled={measurements.length === 0}>
-                    {showMeasurements ? 'Hide' : 'Show'}
-                </button>
-           </div>
-           <div style={compactItemStyle}>
-                <span style={compactItemLabelStyle}>Units</span>
-                <button onClick={handleToggleUnit} style={compactButtonStyle()}>
-                 {unit.toUpperCase()}
-               </button>
-           </div>
+           <button onClick={handleToggleShowComments} style={generalButtonStyle(showComments, comments.length === 0)} disabled={comments.length === 0}>
+             {showComments ? 'Hide Comments' : `Show Comments (${comments.length})`}
+           </button>
+           <button onClick={handleToggleShowMeasurements} style={{...generalButtonStyle(showMeasurements, measurements.length === 0), marginTop: '5px'}} disabled={measurements.length === 0}>
+             {showMeasurements ? 'Hide Measurements' : `Show Measurements (${measurements.length})`}
+           </button>
+           <button onClick={handleToggleUnit} style={{...generalButtonStyle(), marginTop: '5px'}}>
+             Units: {unit.toUpperCase()}
+           </button>
         </div>
         
          {(measurements.length > 0 || comments.length > 0) && (
@@ -872,7 +827,7 @@ function Viewer3D() {
                   isMeasureMode={isMeasureMode}
                   isPlacingCommentMode={isPlacingCommentMode}
                   onPointMeasured={handlePointMeasured}
-                  onCommentPlaced={handleCommentPlaced} // Corrected: Pass handleCommentPlaced
+                  onCommentPlaced={handleCommentPlaced}
                   clippingPlanes={clippingPlanes}
                   viewCommand={viewCommand}
                   initialCameraPos={initialCamPosRef.current}
